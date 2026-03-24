@@ -38,7 +38,7 @@ choreo-app/
 
 ## Roadmap
 - [x] Video controls (speed, loop, frame stepping)
-- [ ] Beat detection from scratch
+- [x] Beat detection from scratch
 - [ ] Streamlit UI
 - [ ] Pose estimation
 - [ ] FastAPI backend
