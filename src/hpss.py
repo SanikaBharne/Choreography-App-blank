@@ -10,10 +10,31 @@ def load_audio(filepath):
     return sample_rate, data/32767
 
 def stft(audio, window_size=2048, hop_length=512):
-    window = []
 
+    # separating the data into managable chunks
+    window = []
     for i in range(0, len(audio), hop_length):
-        window.append(audio[i:i+window_size])
+        chunk = audio[i:i+window_size]
+        if len(chunk) < window_size:
+            chunk = np.pad(chunk, (0, window_size - len(chunk)))
+
+        # hanning each chunk to smoothen out
+        chunk *= np.hanning(window_size)
+        # getting the Real Fast Fourier Transform on each chunk
+        chunk = np.fft.rfft(chunk)
+
+        window.append(chunk)
+    window = np.array(window)
+    window = window.T
+    return window
+
+
+ 
+
+
+
+
+        
 
 
 
