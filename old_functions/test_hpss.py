@@ -11,7 +11,7 @@ from scipy.ndimage import median_filter
 os.environ.setdefault("MPLCONFIGDIR", tempfile.mkdtemp())
 sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
 
-import hpss
+import blueprints.hpss as hpss
 
 
 class TestHPSS(unittest.TestCase):

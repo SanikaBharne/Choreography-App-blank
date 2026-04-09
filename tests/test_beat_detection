@@ -1,0 +1,67 @@
+import unittest
+import numpy as np
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
+
+from beat_detection import detect_beats, merge_beats
+
+
+class TestDetectBeats(unittest.TestCase):
+    def test_returns_sorted_array(self):
+        beats = detect_beats("test_files/TBH.mp3")
+        self.assertIsInstance(beats, np.ndarray)
+        self.assertTrue(np.all(beats[1:] >= beats[:-1]))
+
+    def test_returns_positive_timestamps(self):
+        beats = detect_beats("test_files/TBH.mp3")
+        self.assertTrue(np.all(beats >= 0))
+
+    def test_returns_nonempty_on_real_audio(self):
+        beats = detect_beats("test_files/TBH.mp3")
+        self.assertGreater(len(beats), 0)
+
+
+class TestMergeBeats(unittest.TestCase):
+    def test_fills_gaps(self):
+        drum = np.array([1.0, 2.0, 5.0, 6.0])
+        mix = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+        merged = merge_beats(drum, mix, gap_threshold=1.0)
+        self.assertIn(3.0, merged)
+        self.assertIn(4.0, merged)
+
+    def test_empty_drum_returns_mix(self):
+        drum = np.array([])
+        mix = np.array([1.0, 2.0, 3.0])
+        merged = merge_beats(drum, mix)
+        np.testing.assert_array_equal(merged, mix)
+
+    def test_no_duplicates_when_close(self):
+        drum = np.array([1.0, 2.0, 3.0])
+        mix = np.array([1.05, 2.1, 3.0])
+        merged = merge_beats(drum, mix, gap_threshold=0.5)
+        self.assertEqual(len(merged), 3)
+
+    def test_result_is_sorted(self):
+        drum = np.array([1.0, 5.0])
+        mix = np.array([2.0, 3.0, 4.0])
+        merged = merge_beats(drum, mix, gap_threshold=1.0)
+        self.assertTrue(np.all(merged[1:] >= merged[:-1]))
+
+    def test_identical_inputs(self):
+        beats = np.array([1.0, 2.0, 3.0])
+        merged = merge_beats(beats, beats, gap_threshold=0.5)
+        self.assertEqual(len(merged), 3)
+
+    def test_gap_threshold_respected(self):
+        drum = np.array([1.0, 10.0])
+        mix = np.array([5.0])
+        merged_tight = merge_beats(drum, mix, gap_threshold=0.5)
+        self.assertIn(5.0, merged_tight)
+        merged_wide = merge_beats(drum, mix, gap_threshold=6.0)
+        self.assertNotIn(5.0, merged_wide)
+
+
+if __name__ == "__main__":
+    unittest.main()

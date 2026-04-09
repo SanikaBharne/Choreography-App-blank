@@ -156,11 +156,16 @@ def istft(fourier_transform, window_size=2048, hop_length=512):
     fourier_transform = fourier_transform.T
     inverse_array = np.zeros((len(fourier_transform) - 1) * hop_length + window_size)
 
+    window = np.hanning(window_size)
+    norm = np.zeros_like(inverse_array)
+
     for i, time in enumerate(fourier_transform):
         chunk = np.fft.irfft(time, n=window_size)
-        chunk *= np.hanning(window_size)
-        inverse_array[i * hop_length : i * hop_length + len(chunk)] += chunk
+        chunk *= window
+        inverse_array[i * hop_length : i * hop_length + window_size] += chunk
+        norm[i * hop_length : i * hop_length + window_size] += window ** 2
 
+    inverse_array[norm > 1e-8] /= norm[norm > 1e-8]
     return inverse_array
 
 

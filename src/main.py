@@ -1,19 +1,15 @@
-import hpss
-import audio_utils
-from scipy.io.wavfile import write
+import source_separation
+import beat_detection
+
 
 def main():
     file_path = input("Insert your file path: ")
-    sample_rate, data = audio_utils.load_audio(file_path)
-    fourier_transform = hpss.stft(data)
-    horizontal, vertical = hpss.compute_masks(fourier_transform)
-    harmonic_mask, percussive_mask = hpss.build_masks(horizontal, vertical)
-    harmonic_spectrogram, percussive_spectrogram = hpss.apply_masks(harmonic_mask, percussive_mask, fourier_transform)
-    h_audio = hpss.istft(harmonic_spectrogram)
-    p_audio = hpss.istft(percussive_spectrogram)
-
-    write("harmonic.wav", sample_rate, h_audio)
-    write("percussive.wav", sample_rate, p_audio)
+    stems = source_separation.separate(file_path)
+    drum_beats = beat_detection.detect_beats(stems["drums"])
+    mix_beats = beat_detection.detect_beats(file_path)
+    merged_beats = beat_detection.merge_beats(drum_beats, mix_beats)
+    print(merged_beats)
+    source_separation.get_instrumental(stems, output_path="instrumental.wav")
 
 if __name__ == "__main__":
     main()

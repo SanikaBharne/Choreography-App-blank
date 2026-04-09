@@ -1,161 +1,72 @@
 import numpy as np
-
-def get_frame(data, frame_size=1024):
-    """Split audio data into equally sized frames.
-
-    Args:
-        data: Indexable audio sample data.
-        frame_size: Number of samples per frame.
-
-    Returns:
-        A list containing slices of `data` with at most `frame_size` samples each.
-
-    Raises:
-        TypeError: If `data` is not sliceable or `frame_size` is not an integer.
-        ValueError: If `frame_size` is not positive.
-    """
-    if not hasattr(data, "__len__") or not hasattr(data, "__getitem__"):
-        raise TypeError("data must be a sliceable sequence")
-    if not isinstance(frame_size, int):
-        raise TypeError("frame_size must be an integer")
-    if frame_size <= 0:
-        raise ValueError("frame_size must be positive")
-    return [data[i:i + frame_size] for i in range(0, len(data), frame_size)]
+import librosa
 
 
-def RMS(frame):
-    """Compute the root-mean-square energy of one frame.
+def detect_beats(audio_path, sr=None):
+    """Detect beat timestamps in an audio file.
 
     Args:
-        frame: A non-empty numeric frame of audio samples.
+        audio_path: Path to the audio file to analyze.
+        sr: Target sample rate. If None, the file's native sample rate is used.
 
     Returns:
-        The RMS value as a float-compatible NumPy scalar.
+        A NumPy array of beat timestamps in seconds.
 
     Raises:
-        ValueError: If `frame` is empty.
-        TypeError: If `frame` does not contain numeric samples.
+        TypeError: If audio_path is not a string or sr is not numeric.
+        ValueError: If audio_path is empty or sr is not positive.
+        FileNotFoundError: If audio_path does not exist.
     """
-    frame_array = np.asarray(frame)
-    if frame_array.size == 0:
-        raise ValueError("frame must not be empty")
-    if not np.issubdtype(frame_array.dtype, np.number):
-        raise TypeError("frame must contain numeric samples")
-    return np.sqrt(np.mean(np.square(frame_array)))
+    if not isinstance(audio_path, str):
+        raise TypeError("audio_path must be a string")
+    if not audio_path:
+        raise ValueError("audio_path must not be empty")
+    if sr is not None:
+        if not isinstance(sr, (int, float)):
+            raise TypeError("sr must be numeric")
+        if sr <= 0:
+            raise ValueError("sr must be positive")
+
+    y, sr = librosa.load(audio_path, sr=sr)
+    tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+    return librosa.frames_to_time(beats, sr=sr)
 
 
-def get_RMS_energy(list_of_frames):
-    """Compute RMS energy for every frame in a sequence.
+def merge_beats(drum_beats, mix_beats, gap_threshold=1.0):
+    """Merge two beat arrays, keeping mix beats that are far enough from drum beats.
 
     Args:
-        list_of_frames: A sequence of non-empty numeric audio frames.
+        drum_beats: NumPy array of beat timestamps from the drum stem, in seconds.
+        mix_beats: NumPy array of beat timestamps from the full mix, in seconds.
+        gap_threshold: Minimum distance in seconds a mix beat must be from all
+            drum beats to be included in the result.
 
     Returns:
-        A list of RMS values, one per frame.
+        A sorted NumPy array of merged beat timestamps in seconds.
 
     Raises:
-        ValueError: If `list_of_frames` is `None`.
+        TypeError: If drum_beats or mix_beats are not array-like, or
+            gap_threshold is not numeric.
+        ValueError: If gap_threshold is not positive.
     """
-    if list_of_frames is None:
-        raise ValueError("list_of_frames must not be None")
-    return [RMS(frame) for frame in list_of_frames]
+    drum_beats = np.asarray(drum_beats)
+    mix_beats = np.asarray(mix_beats)
 
+    if not np.issubdtype(drum_beats.dtype, np.number):
+        raise TypeError("drum_beats must contain numeric values")
+    if not np.issubdtype(mix_beats.dtype, np.number):
+        raise TypeError("mix_beats must contain numeric values")
+    if not isinstance(gap_threshold, (int, float)):
+        raise TypeError("gap_threshold must be numeric")
+    if gap_threshold <= 0:
+        raise ValueError("gap_threshold must be positive")
 
-def get_onset_strength(list_of_RMS_values):
-    """Measure positive frame-to-frame increases in RMS energy.
+    if len(drum_beats) == 0:
+        return mix_beats
 
-    Args:
-        list_of_RMS_values: A sequence of numeric RMS values.
+    merged = list(drum_beats)
+    for t in mix_beats:
+        if min(abs(drum_beats - t)) >= gap_threshold:
+            merged.append(t)
 
-    Returns:
-        A list whose entries are the positive increases between adjacent RMS values.
-
-    Raises:
-        ValueError: If `list_of_RMS_values` is `None`.
-        TypeError: If any RMS value is non-numeric.
-    """
-    if list_of_RMS_values is None:
-        raise ValueError("list_of_RMS_values must not be None")
-    list_of_onset_strength = []
-    for i in range(len(list_of_RMS_values) - 1):
-        prev_value = list_of_RMS_values[i]
-        value = list_of_RMS_values[i + 1]
-        if not np.issubdtype(type(prev_value), np.number):
-            raise TypeError("RMS values must be numeric")
-        if not np.issubdtype(type(value), np.number):
-            raise TypeError("RMS values must be numeric")
-        onset = value - prev_value
-
-        if onset < 0:
-            onset = 0
-
-        list_of_onset_strength.append(onset)
-        
-    return list_of_onset_strength
-
-
-def get_beats(list_of_onset_strength, threshold=None):
-    """Find frame indices whose onset strength exceeds a threshold.
-
-    Args:
-        list_of_onset_strength: A sequence of numeric onset-strength values.
-        threshold: Optional numeric threshold. If omitted, the mean onset strength is used.
-
-    Returns:
-        A list of frame indices where onset strength is greater than the threshold.
-
-    Raises:
-        ValueError: If `list_of_onset_strength` is `None`.
-        TypeError: If onset strengths or `threshold` are non-numeric.
-    """
-    if list_of_onset_strength is None:
-        raise ValueError("list_of_onset_strength must not be None")
-    if len(list_of_onset_strength) == 0:
-        return []
-
-    for onset in list_of_onset_strength:
-        if not np.issubdtype(type(onset), np.number):
-            raise TypeError("onset strengths must be numeric")
-
-    if threshold is None:
-        threshold = np.mean(list_of_onset_strength)
-    else:
-        if not np.issubdtype(type(threshold), np.number):
-            raise TypeError("threshold must be numeric")
-
-    return [i for i, onset in enumerate(list_of_onset_strength) if onset > threshold]
-
-
-def get_timestamp(beat_indices, frame_size, sample_rate):
-    """Convert beat frame indices into timestamps in seconds.
-
-    Args:
-        beat_indices: A sequence of non-negative frame indices.
-        frame_size: Number of samples represented by each frame.
-        sample_rate: Audio sample rate in samples per second.
-
-    Returns:
-        A list of timestamps in seconds for each beat index.
-
-    Raises:
-        ValueError: If `beat_indices` is `None`, indices are negative, or numeric values are non-positive.
-        TypeError: If indices are not integers or numeric parameters have the wrong type.
-    """
-    if beat_indices is None:
-        raise ValueError("beat_indices must not be None")
-    if not isinstance(frame_size, int):
-        raise TypeError("frame_size must be an integer")
-    if frame_size <= 0:
-        raise ValueError("frame_size must be positive")
-    if not np.issubdtype(type(sample_rate), np.number):
-        raise TypeError("sample_rate must be numeric")
-    if sample_rate <= 0:
-        raise ValueError("sample_rate must be positive")
-
-    for indice in beat_indices:
-        if not isinstance(indice, (int, np.integer)):
-            raise TypeError("beat indices must be integers")
-        if indice < 0:
-            raise ValueError("beat indices must be non-negative")
-
-    return [indice * frame_size / sample_rate for indice in beat_indices]
+    return np.sort(merged)

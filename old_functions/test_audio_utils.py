@@ -9,7 +9,7 @@ from pydub import AudioSegment
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
 
-import audio_utils
+import old_functions.audio_utils as audio_utils
 
 
 class TestAudioUtils(unittest.TestCase):
