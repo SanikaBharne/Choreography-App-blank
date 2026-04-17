@@ -1,1 +1,12 @@
+demucs
+fastapi
+httpx
+librosa
+mediapipe
+moviepy
+numpy
+python-multipart
 pydub
+streamlit
+torchcodec
+uvicorn

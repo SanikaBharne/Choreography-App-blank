@@ -1,6 +1,19 @@
-from moviepy.editor import VideoFileClip
-from moviepy.editor import vfx
 import os
+
+try:
+    from moviepy import VideoFileClip, vfx
+except ImportError:
+    from moviepy.editor import VideoFileClip, vfx
+
+USES_CLASS_BASED_EFFECTS = not hasattr(vfx, "speedx")
+if USES_CLASS_BASED_EFFECTS and hasattr(vfx, "MultiplySpeed"):
+    vfx.speedx = vfx.MultiplySpeed
+if USES_CLASS_BASED_EFFECTS and hasattr(vfx, "MirrorX"):
+    vfx.mirror_x = vfx.MirrorX
+
+
+def _is_real_moviepy_clip(clip):
+    return clip.__class__.__module__.startswith("moviepy")
 
 def load_video(filepath):
     """Load a video file from disk.
@@ -33,6 +46,8 @@ def change_speed(clip, speed_multiplier):
     """
     if speed_multiplier <= 0:
         raise ValueError("Speed must be greater than 0")
+    if USES_CLASS_BASED_EFFECTS and _is_real_moviepy_clip(clip):
+        return clip.with_effects([vfx.MultiplySpeed(speed_factor=speed_multiplier)])
     return clip.fx(vfx.speedx, speed_multiplier)
 
 def loop_section(clip, start_sec, end_sec):
@@ -53,6 +68,8 @@ def loop_section(clip, start_sec, end_sec):
         raise ValueError(f"Loop points must be within video duration (0 to {clip.duration:.2f}s)")
     if start_sec >= end_sec:
         raise ValueError("Start must be before end")
+    if hasattr(clip, "subclipped") and _is_real_moviepy_clip(clip):
+        return clip.subclipped(start_sec, end_sec)
     return clip.subclip(start_sec, end_sec)
 
 def get_frame(clip, timestamp_sec):
@@ -103,4 +120,6 @@ def mirror_video(clip):
     Returns:
         A horizontally mirrored version of the clip.
     """
+    if USES_CLASS_BASED_EFFECTS and _is_real_moviepy_clip(clip):
+        return clip.with_effects([vfx.MirrorX()])
     return clip.fx(vfx.mirror_x)

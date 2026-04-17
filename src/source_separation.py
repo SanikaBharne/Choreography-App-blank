@@ -25,20 +25,32 @@ def separate(audio_path, output_dir="separated"):
     if not os.path.exists(audio_path):
         raise FileNotFoundError(f"File not found: {audio_path}")
 
-    demucs.separate.main([
-        "-n", "htdemucs",
-        "-o", output_dir,
-        audio_path
-    ])
+    output_root = os.path.abspath(output_dir)
+    os.makedirs(output_root, exist_ok=True)
+
+    try:
+        demucs.separate.main([
+            "-n", "htdemucs",
+            "-o", output_root,
+            audio_path
+        ])
+    except SystemExit as exc:
+        raise RuntimeError(f"Demucs separation failed for {audio_path}") from exc
 
     track_name = os.path.splitext(os.path.basename(audio_path))[0]
-    stem_dir = os.path.join(output_dir, "htdemucs", track_name)
+    stem_dir = os.path.join(output_root, "htdemucs", track_name)
 
     stems = {}
     for stem in ["vocals", "drums", "bass", "other"]:
         path = os.path.join(stem_dir, f"{stem}.wav")
         if os.path.exists(path):
             stems[stem] = path
+    missing = [stem for stem in ["vocals", "drums", "bass", "other"] if stem not in stems]
+    if missing:
+        raise RuntimeError(
+            "Demucs did not produce required stems: "
+            + ", ".join(missing)
+        )
 
     return stems
 
