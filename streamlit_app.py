@@ -123,11 +123,11 @@ def apply_soft_theme():
             letter-spacing: 0.05em;
         }
         /* Ensure all text is visible on light backgrounds */
-        .stApp, .block-container, .hero-card, .soft-card, .beat-summary, .stButton > button, .stMetric, .section-label {
+        .stApp, .block-container, .hero-card, .soft-card, .beat-summary, .stButton > button, .stMetric, .section-label, div[data-testid="stMetricValue"], div[data-testid="stMetricLabel"] {
             color: #3a2320 !important;
         }
         /* Fix for Streamlit's default text color on some widgets */
-        .stTextInput > div > input, .stSelectbox > div > div, .stSlider > div, .stRadio > div, .stCheckbox > label, .stCaption, .stDataFrame, .stExpanderHeader {
+        .stTextInput > div > input, .stSelectbox > div > div, .stSlider > div, .stRadio > div, .stCheckbox > label, .stCaption, .stDataFrame, .stExpanderHeader, .stNumberInput > div > div > input {
             color: #3a2320 !important;
         }
         /* Increase font size for better readability */
@@ -168,18 +168,21 @@ def render_sidebar():
     with st.sidebar.expander("⚙️ Advanced options", expanded=False):
         run_separation = st.checkbox("🎙️ Isolate audio stems", value=False, help="Split audio into vocals, drums, bass, and other tracks.")
         run_pose_estimation = st.checkbox("🧘 Track body position", value=False, help="Detect shoulders, elbows, hips, and posture angles.")
+        custom_pose_timestamp = None
         if run_pose_estimation:
             pose_sample_count = st.slider("Frames to analyze", min_value=2, max_value=12, value=4, help="More frames = better detail, slower processing.")
             pose_timing = st.selectbox(
                 "When to sample",
-                options=["Evenly spaced", "At detected beats"],
-                help="Evenly = spread throughout video, At beats = capture key rhythm moments.",
+                options=["Evenly spaced", "At detected beats", "Custom timestamp"],
+                help="Evenly = spread throughout video, At beats = capture key rhythm moments, Custom = enter a specific second.",
             )
+            if pose_timing == "Custom timestamp":
+                custom_pose_timestamp = st.number_input("Enter timestamp (seconds)", min_value=0.0, value=0.0, step=0.1, format="%.2f")
             st.caption("💡 Longer videos? Use 8+ frames. Short clips? 2-4 is fine.")
         else:
             pose_sample_count = 4
             pose_timing = "Evenly spaced"
-    return beat_method, subdivisions, run_separation, run_pose_estimation, pose_sample_count, pose_timing
+    return beat_method, subdivisions, run_separation, run_pose_estimation, pose_sample_count, pose_timing, custom_pose_timestamp
 
 
 def render_upload_help():
@@ -307,6 +310,12 @@ def render_stems(original_file):
             st.caption(stem_path)
 
 
+def format_timestamp(seconds):
+    """Convert seconds to M:SS format."""
+    minutes = int(seconds // 60)
+    remaining_seconds = int(seconds % 60)
+    return f"{minutes}:{remaining_seconds:02d}"
+
 def render_pose_estimation(original_file, pose_results):
     st.markdown('<div class="section-label">Pose Estimation</div>', unsafe_allow_html=True)
     st.caption("🧘 Detected body position and posture landmarks in your video.")
@@ -320,12 +329,20 @@ def render_pose_estimation(original_file, pose_results):
         f'{overview["average_shoulder_tilt"]} deg' if overview["average_shoulder_tilt"] is not None else "N/A",
     )
 
-    st.dataframe(pose_results["rows"], use_container_width=True, hide_index=True)
+    # Format timestamps in the dataframe
+    display_rows = []
+    for row in pose_results["rows"]:
+        display_row = row.copy()
+        display_row["timestamp_label"] = f"{format_timestamp(row['timestamp'])} ({row['timestamp']:.2f}s)"
+        display_rows.append(display_row)
+    
+    st.dataframe(display_rows, use_container_width=True, hide_index=True)
 
     overlay_columns = st.columns(2)
     for index, frame_result in enumerate(pose_results["frames"]):
         with overlay_columns[index % 2]:
-            st.markdown(f"#### {frame_result['timestamp']}s")
+            ts = frame_result['timestamp']
+            st.markdown(f"#### Pose at {format_timestamp(ts)} ({ts:.2f}s)")
             st.image(frame_result["overlay_frame"], use_container_width=True, clamp=True)
             if frame_result["summary"] is None:
                 st.caption("No pose detected in this frame.")
@@ -411,26 +428,5 @@ def render_choreography_summary(choreography, key_prefix="default", learning_sta
     try:
         if not cached_animation or cached_animation.get("signature") != routine_signature:
             full_animation = pose_sequences.create_full_routine_animation(choreography, fps=8)
-            st.session_state[animation_cache_key] = {
-                "signature": routine_signature,
-                "data": full_animation,
-            }
-        else:
-            full_animation = cached_animation.get("data")
-    except Exception as exc:
-        full_animation = None
-        st.error(f"Could not generate full routine animation: {exc}")
-
-    try:
-        if full_animation:
-            st.image(full_animation, use_container_width=True)
-            st.caption("Watch your complete dance routine from start to finish!")
-        else:
-            st.info("🎬 Full routine animation could not be generated.")
-    except Exception as exc:
-        st.error(f"Could not generate full routine animation: {exc}")
-
-    st.markdown("#### Step Sequence")
-    for i, step in enumerate(choreography, 1):
-        with st.expander(f"Step {i}: {step['name']}", ex
+           
 (Content truncated due to size limit. Use line ranges to read remaining content)
