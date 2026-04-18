@@ -402,12 +402,19 @@ def save_overlay_frame(frame, output_name):
     return output_path
 
 
+def format_timestamp(seconds):
+    """Convert seconds to M:SS format."""
+    minutes = int(seconds // 60)
+    remaining_seconds = int(seconds % 60)
+    return f"{minutes}:{remaining_seconds:02d}"
+
 def summarize_eight_counts(grouped_counts, limit=8):
     summaries = []
     for index, group in enumerate(grouped_counts[:limit], start=1):
         formatted = []
         for timestamp, is_beat in group:
-            label = f"{float(timestamp):.2f}s"
+            ts = float(timestamp)
+            label = f"{format_timestamp(ts)} ({ts:.2f}s)"
             if not is_beat:
                 label += " (sub)"
             formatted.append(label)
